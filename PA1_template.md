@@ -1,0 +1,201 @@
+Reproducible Research: Peer Assessment 1
+=====================================================
+
+## Introduction
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+## Background
+This report is based on data from a personal activity monitoring device which collects data at five minute intervals throughout the day. Two months of data was collected from an anonymous individual during the months of October and November 2012.
+
+The dataset contains three variables:
+**Steps:** Number of steps taken in a 5-minute interval (missing values coded as NA);
+**Date:** The date on which the measurement was taken in YYYY-MM-DD format; and
+**Interval:** Identifier for the 5-minute interval in which measurement was taken.
+
+
+
+## Loading and preprocessing the data
+
+Please note, there are a couple of prerequisites required to run this analysis: 
+* The working directory is set to where you want to run the analysis
+* The data has been downloaded and unzipped to this working directory (http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip)
+* The lattice and plyr packages are installed on your local system
+
+We must assume that the user has set the proper working directory, so we begin by checking and loading the dependencies. 
+
+
+```r
+  require("lattice")
+```
+
+```
+## Loading required package: lattice
+```
+
+```r
+  require("plyr")
+```
+
+```
+## Loading required package: plyr
+```
+
+```r
+  library(plyr)
+  library(lattice)
+```
+
+Load the raw data
+
+```r
+RawData <- read.csv("activity.csv")
+```
+
+Process the raw data so that it is suitable for analysis
+
+```r
+Activity<-aggregate(steps~date,data=RawData,sum,na.rm=TRUE)
+```
+
+## What is the mean total number of steps taken per day?
+To examine the number of steps taken per day we first examine the distribution of steps.
+Figure 1 shows the distribution of steps taken each day.
+
+```r
+hist(Activity$steps, breaks=10, main="Figure 1. Histogram of Total Steps", xlab="Total Steps", ylab="Frequency")
+```
+
+![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4.png) 
+
+We then calculate the mean and median steps per day.
+
+```r
+mean(Activity$steps)
+```
+
+```
+## [1] 10766
+```
+
+```r
+median(Activity$steps)
+```
+
+```
+## [1] 10765
+```
+On average, the individual took 1.0766 &times; 10<sup>4</sup> steps per day, while the median was 10765 steps per day.
+
+## What is the average daily activity pattern?
+In order to examine the average daily activity pattern, an average mean steps across each 5-minute interval was computed and plotted to examine the distribution. Figure 2 shows this distribution.
+
+```r
+Interval<-aggregate(steps~interval,data=RawData,mean,na.rm=TRUE)
+plot(steps~interval,data=Interval,type="l",main="Figure 2. Average Daily Activity Pattern",xlab="Interval",ylab="Average Steps")
+```
+
+![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6.png) 
+
+Then we analyse the file to determine which interval, on average across the days, contained the highest steps.
+
+```r
+Interval[which.max(Interval$steps),]$interval
+```
+
+```
+## [1] 835
+```
+
+The **835th** interval contained the highest number of steps, on average, across the days measured.
+
+## Imputing missing values
+We know from the introduction that there were missing values (coded as NA) for some of the intervals or days. These missing values may conflate some of the analysis we have undertaken.
+Firstly, we need to understand how many missing values are present.
+
+
+```r
+sum(is.na(RawData$steps))
+```
+
+```
+## [1] 2304
+```
+In total, 2304 rows are missing.
+
+In order to impute the missing values we will replace them with the mean for each interval.
+
+
+```r
+MEANimp<-function(interval){
+    Interval[Interval$interval==interval,]$steps
+}
+# Use this to create a new dataset with the missing values imputed.
+Activityimputed<-RawData   # Make a new dataset with the original data
+count=0           # Count the number of data filled in
+for(i in 1:nrow(Activityimputed)){
+    if(is.na(Activityimputed[i,]$steps)){
+        Activityimputed[i,]$steps<-MEANimp(Activityimputed[i,]$interval)
+        count=count+1
+    }
+}
+cat("Total ",count, "NA values were filled.\n\r")  
+```
+
+```
+## Total  2304 NA values were filled.
+## 
+```
+
+Now we must re-examine the analysis we previously conducted.
+
+Figure 3 shows the distribution of steps taken each day, based on the imputed dataset.
+
+```r
+totalSteps2<-aggregate(steps~date,data=Activityimputed,sum)
+hist(totalSteps2$steps, breaks=10, main="Figure 3. Histogram of Total Steps (imputed data)", xlab="Total Steps", ylab="Frequency")
+```
+
+![plot of chunk unnamed-chunk-10](figure/unnamed-chunk-10.png) 
+
+```r
+mean(totalSteps2$steps)
+```
+
+```
+## [1] 10766
+```
+
+```r
+median(totalSteps2$steps)
+```
+
+```
+## [1] 10766
+```
+
+Based on the imputed data, on average the individual took 1.0766 &times; 10<sup>4</sup> steps per day while, the median was 1.0766 &times; 10<sup>4</sup> steps.
+
+Given the strategy we utilised to impute the missing values involved the mean, we would not expect our imputing method to have an effect. Our analysis has supported this hypothesis and we did not detected any differences.
+
+## Are there differences in activity patterns between weekdays and weekends?
+In order to compare activity on weekdays with that on weekends we need to examine the distribution for weekdays versus weekends. To create this plot, we first assign the values "weekend" and "weekday" calculate the average steps for each time interval for weekends and weekdays separately.
+
+
+```r
+Activityimputed$day=ifelse(as.POSIXlt(as.Date(Activityimputed$date))$wday%%6==0,
+                          "weekend","weekday")
+# For Sunday and Saturday : weekend, Other days : weekday 
+Activityimputed$day=factor(Activityimputed$day,levels=c("weekday","weekend"))
+```
+
+We are now ready to plot. Figure 5 shows the average daily activity pattern for weekends and weekdays.
+
+```r
+stepsInterval2=aggregate(steps~interval+day,Activityimputed,mean)
+library(lattice)
+xyplot(steps~interval|factor(day),data=stepsInterval2,aspect=1/2,type="l",main="Figure 4. Activity Patterns for Weekends and Weekdays")
+```
+
+![plot of chunk unnamed-chunk-12](figure/unnamed-chunk-12.png) 
+
+As can be seen in Figure 4, there was difference in behaviour between weekdays and weekends. On weekdays, the individual was more active in the mornings and then less so for the remainder of the day. On weekends, activity was more consistent across the day. This is not surprising given people would generally be active prior to attending work during the week and then (probably) spend much of their work day sitting whereas they would not be confined to a desk on weekends.
